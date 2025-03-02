@@ -1,37 +1,30 @@
-import os
-import time
-import threading
-import logging
 from flask import Flask, request, jsonify
-from twilio.rest import Client
+import os
 import openai
+from twilio.rest import Client
 
 app = Flask(__name__)
-logging.basicConfig(level=logging.INFO)
 
-# Twilio
+openai.api_key = os.getenv('OPENAI_API_KEY')
 TWILIO_ACCOUNT_SID = os.getenv('TWILIO_ACCOUNT_SID')
 TWILIO_AUTH_TOKEN = os.getenv('TWILIO_AUTH_TOKEN')
 TWILIO_WHATSAPP_NUMBER = os.getenv('TWILIO_WHATSAPP_NUMBER')
 
 client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
 
-# OpenAI
-openai.api_key = os.getenv('OPENAI_API_KEY')
-
 @app.route('/webhook', methods=['POST'])
 def webhook():
     data = request.form
     from_number = data.get('From')
     message_body = data.get('Body')
-
-    logging.info(f"Сообщение от {from_number}: {message_body}")
-
     if message_body:
         gpt_response = ask_gpt(message_body)
         send_whatsapp_message(from_number, gpt_response)
-
     return jsonify({"status": "success"}), 200
+
+@app.route('/webhook', methods=['GET'])
+def webhook_check():
+    return jsonify({"status": "ok"}), 200
 
 def ask_gpt(text):
     response = openai.ChatCompletion.create(
@@ -42,19 +35,12 @@ def ask_gpt(text):
     return response.choices[0].message.content
 
 def send_whatsapp_message(to, message):
-    message = client.messages.create(
+    client.messages.create(
         from_=TWILIO_WHATSAPP_NUMBER,
         body=message,
         to=to
     )
-    logging.info(f"Отправлено сообщение {message.sid} на {to}")
 
-# ✅ Keep-Alive функция
-def keep_alive():
-    while True:
-        logging.info("⏳ Бот работает и не спит...")
-        time.sleep(60)
-
-if __name__ == '__main__':
-    threading.Thread(target=keep_alive).start()
+if __name__ == "__main__":
+    print("🚀 Бот работает и не спит...")
     app.run(host='0.0.0.0', port=8080)
