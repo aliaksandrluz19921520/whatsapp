@@ -41,6 +41,6 @@ def send_whatsapp_message(to, message):
         to=to
     )
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     print("🚀 Бот работает и не спит...")
     app.run(host='0.0.0.0', port=8080)
