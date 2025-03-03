@@ -50,9 +50,16 @@ def webhook():
         # Подготовка запроса к GPT
         prompt = message_body or "Анализируйте изображение и выберите правильный вариант из: " + ", ".join(OPTIONS)
         if media_url:
-            # Скачивание и преобразование изображения в base64
-            image_response = requests.get(media_url)
-            image = Image.open(BytesIO(image_response.content))
+            # Аутентифицированный запрос к Twilio для получения изображения
+            response = requests.get(
+                media_url,
+                auth=(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN),
+                timeout=10
+            )
+            response.raise_for_status()  # Проверка на ошибки (например, 401)
+
+            # Преобразование изображения
+            image = Image.open(BytesIO(response.content))
             buffered = BytesIO()
             image.save(buffered, format="PNG")
             img_base64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
@@ -83,6 +90,9 @@ def webhook():
 
         return jsonify({"status": "success"}), 200
 
+    except requests.exceptions.RequestException as e:
+        logging.error(f"Ошибка при загрузке изображения: {str(e)}")
+        return jsonify({"status": "error", "message": f"Не удалось загрузить изображение: {str(e)}"}), 500
     except Exception as e:
         logging.error(f"Ошибка в webhook: {str(e)}")
         return jsonify({"status": "error", "message": str(e)}), 500
