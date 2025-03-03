@@ -6,7 +6,8 @@ from twilio.rest import Client as TwilioClient
 from openai import OpenAI, __version__ as openai_version
 import logging
 from io import BytesIO
-from PIL import Image, ImageEnhance
+from PIL import Image
+import time
 
 # Инициализация Flask приложения
 app = Flask(__name__)
@@ -32,6 +33,7 @@ openai_client = OpenAI(api_key=OPENAI_API_KEY)
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
+    start_time = time.time()
     try:
         # Получение данных из запроса
         data = request.form
@@ -54,17 +56,8 @@ def webhook():
             )
             response.raise_for_status()  # Проверка на ошибки (например, 401)
 
-            # Загрузка и улучшение изображения
+            # Загрузка изображения без обработки
             image = Image.open(BytesIO(response.content)).convert("RGB")
-            # Увеличение резкости и контрастности
-            enhancer = ImageEnhance.Sharpness(image)
-            image = enhancer.enhance(3.0)
-            enhancer = ImageEnhance.Contrast(image)
-            image = enhancer.enhance(2.0)
-            # Увеличение размера изображения
-            new_size = (image.width * 4, image.height * 4)
-            image = image.resize(new_size, Image.Resampling.LANCZOS)
-
             buffered = BytesIO()
             image.save(buffered, format="PNG", quality=95)
             img_base64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
@@ -92,12 +85,19 @@ def webhook():
             messages = [{"role": "user", "content": message_body}]
 
         # Получение ответа от GPT-4o
+        start_gpt_time = time.time()
         gpt_response = ask_gpt(messages)
+        gpt_time = time.time() - start_gpt_time
+        logging.debug(f"Время обработки GPT: {gpt_time} секунд")
+
         logging.debug(f"Ответ от GPT: {gpt_response}")
 
         # Отправка ответа через WhatsApp
         send_whatsapp_message(from_number, gpt_response)
         logging.debug(f"Сообщение отправлено пользователю {from_number}")
+
+        total_time = time.time() - start_time
+        logging.debug(f"Общее время ответа: {total_time} секунд")
 
         return jsonify({"status": "success"}), 200
 
