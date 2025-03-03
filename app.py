@@ -58,85 +58,19 @@ def webhook():
             image = Image.open(BytesIO(response.content)).convert("RGB")
             # Увеличение резкости и контрастности
             enhancer = ImageEnhance.Sharpness(image)
-            image = enhancer.enhance(2.5)
+            image = enhancer.enhance(3.0)
             enhancer = ImageEnhance.Contrast(image)
-            image = enhancer.enhance(1.7)
+            image = enhancer.enhance(2.0)
             # Увеличение размера изображения
-            new_size = (image.width * 3, image.height * 3)
+            new_size = (image.width * 4, image.height * 4)
             image = image.resize(new_size, Image.Resampling.LANCZOS)
 
             buffered = BytesIO()
             image.save(buffered, format="PNG", quality=95)
             img_base64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
 
-            # Упрощенный prompt для выбора только ответа
+            # Уточненный prompt для экзаменационных вопросов
             prompt = (
-                "Анализируйте изображение. Найдите текст с вопросом, связанным с калифорнийским законодательством "
-                "в области строительства и права (например, контракты, страхование, лицензии), и перечисленные варианты ответа. "
-                "Выберите наиболее релевантный и правильный вариант ответа на основе законов Калифорнии для генерального подрядчика (Class B). "
-                "Верните ответ только в формате 'Ответ: [выбранный_вариант]' (например, 'Ответ: A contractor must have general liability insurance.'). "
-                "Если вопрос или варианты не найдены, верните 'Ответ: N/A'."
-            )
-            messages = [
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": prompt},
-                        {
-                            "type": "image_url",
-                            "image_url": {"url": f"data:image/png;base64,{img_base64}"}
-                        }
-                    ]
-                }
-            ]
-        else:
-            messages = [{"role": "user", "content": message_body}]
-
-        # Получение ответа от GPT-4o
-        gpt_response = ask_gpt(messages)
-        logging.debug(f"Ответ от GPT: {gpt_response}")
-
-        # Отправка ответа через WhatsApp
-        send_whatsapp_message(from_number, gpt_response)
-        logging.debug(f"Сообщение отправлено пользователю {from_number}")
-
-        return jsonify({"status": "success"}), 200
-
-    except requests.exceptions.RequestException as e:
-        logging.error(f"Ошибка при загрузке изображения: {str(e)}")
-        return jsonify({"status": "error", "message": f"Не удалось загрузить изображение: {str(e)}"}), 500
-    except Exception as e:
-        logging.error(f"Ошибка в webhook: {str(e)}")
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-@app.route('/webhook', methods=['GET'])
-def webhook_check():
-    return jsonify({"status": "ok"}), 200
-
-def ask_gpt(messages):
-    try:
-        logging.debug(f"Версия библиотеки OpenAI: {openai_version}")
-        response = openai_client.chat.completions.create(
-            model="gpt-4o",
-            messages=messages,
-            max_tokens=600
-        )
-        return response.choices[0].message.content.strip()
-    except Exception as e:
-        logging.error(f"Ошибка в ask_gpt: {str(e)}")
-        raise
-
-def send_whatsapp_message(to, message):
-    try:
-        twilio_client.messages.create(
-            from_=TWILIO_WHATSAPP_NUMBER,
-            body=message,
-            to=to
-        )
-    except Exception as e:
-        logging.error(f"Ошибка в send_whatsapp_message: {str(e)}")
-        raise
-
-if __name__ == "__main__":
-    print("🚀 Бот работает и не спит...")
-    app.run(host="0.0.0.0", port=8080)
+                "Проанализируй изображение, найди вопрос и варианты ответов. "
+                "Ответь на вопрос, выбрав правильный вариант согласно строительным законам Калифорнии для General Contractor (Class B). "
+                "Ответ
