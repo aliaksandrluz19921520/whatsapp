@@ -1,7 +1,7 @@
 import os
 from flask import Flask, request, jsonify
 from twilio.rest import Client
-from openai import OpenAI
+import openai
 
 app = Flask(__name__)
 
@@ -11,9 +11,11 @@ TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
 TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
 TWILIO_WHATSAPP_NUMBER = os.getenv("TWILIO_WHATSAPP_NUMBER")
 
-# Инициализация клиентов
-openai_client = OpenAI()
+# Инициализация клиента Twilio
 twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+
+# Настройка API-ключа OpenAI
+openai.api_key = OPENAI_API_KEY
 
 
 @app.route('/webhook', methods=['POST'])
@@ -35,7 +37,7 @@ def webhook_check():
 
 
 def ask_gpt(text):
-    response = openai_client.chat.completions.create(
+    response = openai.chat.completions.create(
         model="gpt-4o",
         messages=[{"role": "user", "content": text}],
         max_tokens=100
