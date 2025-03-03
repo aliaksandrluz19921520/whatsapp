@@ -1,8 +1,12 @@
 import os
+import base64
+import requests
 from flask import Flask, request, jsonify
 from twilio.rest import Client as TwilioClient
 from openai import OpenAI, __version__ as openai_version
 import logging
+from io import BytesIO
+from PIL import Image
 
 # Инициализация Flask приложения
 app = Flask(__name__)
@@ -26,6 +30,9 @@ twilio_client = TwilioClient(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
 # Инициализация клиента OpenAI
 openai_client = OpenAI(api_key=OPENAI_API_KEY)
 
+# Предопределенные варианты ответа (пример)
+OPTIONS = ["A", "B", "C"]
+
 @app.route('/webhook', methods=['POST'])
 def webhook():
     try:
@@ -33,14 +40,41 @@ def webhook():
         data = request.form
         from_number = data.get('From')
         message_body = data.get('Body')
+        media_url = data.get('MediaUrl0')  # URL изображения от Twilio
 
-        logging.debug(f"Получено сообщение от {from_number}: {message_body}")
+        logging.debug(f"Получено сообщение от {from_number}: текст={message_body}, media_url={media_url}")
 
-        if not message_body:
-            return jsonify({"status": "error", "message": "Нет текста сообщения"}), 400
+        if not message_body and not media_url:
+            return jsonify({"status": "error", "message": "Нет текста или изображения"}), 400
+
+        # Подготовка запроса к GPT
+        prompt = message_body or "Анализируйте изображение и выберите правильный вариант из: " + ", ".join(OPTIONS)
+        if media_url:
+            # Скачивание и преобразование изображения в base64
+            image_response = requests.get(media_url)
+            image = Image.open(BytesIO(image_response.content))
+            buffered = BytesIO()
+            image.save(buffered, format="PNG")
+            img_base64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
+
+            # Формирование сообщения с изображением и текстом
+            messages = [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:image/png;base64,{img_base64}"}
+                        }
+                    ]
+                }
+            ]
+        else:
+            messages = [{"role": "user", "content": prompt}]
 
         # Получение ответа от GPT-4o
-        gpt_response = ask_gpt(message_body)
+        gpt_response = ask_gpt(messages)
         logging.debug(f"Ответ от GPT: {gpt_response}")
 
         # Отправка ответа через WhatsApp
@@ -57,12 +91,12 @@ def webhook():
 def webhook_check():
     return jsonify({"status": "ok"}), 200
 
-def ask_gpt(text):
+def ask_gpt(messages):
     try:
         logging.debug(f"Версия библиотеки OpenAI: {openai_version}")
         response = openai_client.chat.completions.create(
-            model="gpt-4o",
-            messages=[{"role": "user", "content": text}],
+            model="gpt-4o",  # Убедитесь, что используется модель, поддерживающая изображения
+            messages=messages,
             max_tokens=100
         )
         return response.choices[0].message.content
