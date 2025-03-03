@@ -1,7 +1,7 @@
 import os
 from flask import Flask, request, jsonify
 from twilio.rest import Client as TwilioClient
-from openai import OpenAI
+from openai import OpenAI, __version__ as openai_version
 import logging
 
 # Инициализация Flask приложения
@@ -59,7 +59,7 @@ def webhook_check():
 
 def ask_gpt(text):
     try:
-        logging.debug(f"Версия библиотеки OpenAI: {OpenAI.__version__}")
+        logging.debug(f"Версия библиотеки OpenAI: {openai_version}")
         response = openai_client.chat.completions.create(
             model="gpt-4o",
             messages=[{"role": "user", "content": text}],
