@@ -30,7 +30,7 @@ twilio_client = TwilioClient(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
 # Инициализация клиента OpenAI
 openai_client = OpenAI(api_key=OPENAI_API_KEY)
 
-# Предопределенные варианты ответа (пример)
+# Предопределенные варианты ответа (можно настроить под ваши нужды)
 OPTIONS = ["A", "B", "C"]
 
 @app.route('/webhook', methods=['POST'])
@@ -48,7 +48,6 @@ def webhook():
             return jsonify({"status": "error", "message": "Нет текста или изображения"}), 400
 
         # Подготовка запроса к GPT
-        prompt = message_body or "Анализируйте изображение и выберите правильный вариант из: " + ", ".join(OPTIONS)
         if media_url:
             # Аутентифицированный запрос к Twilio для получения изображения
             response = requests.get(
@@ -64,7 +63,12 @@ def webhook():
             image.save(buffered, format="PNG")
             img_base64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
 
-            # Формирование сообщения с изображением и текстом
+            # Улучшенный prompt для анализа вопроса и выбора варианта
+            prompt = (
+                "Анализируйте изображение. Найдите вопрос, указанный на нем, и выберите наиболее релевантный вариант ответа "
+                f"из предоставленного списка: {', '.join(OPTIONS)}. Верните ответ в формате 'Ответ [выбранный_вариант]' "
+                "(например, 'Ответ A'). Если вопрос неясен или вариантов нет, верните 'Не удалось определить вопрос'."
+            )
             messages = [
                 {
                     "role": "user",
@@ -78,7 +82,7 @@ def webhook():
                 }
             ]
         else:
-            messages = [{"role": "user", "content": prompt}]
+            messages = [{"role": "user", "content": message_body}]
 
         # Получение ответа от GPT-4o
         gpt_response = ask_gpt(messages)
@@ -107,9 +111,9 @@ def ask_gpt(messages):
         response = openai_client.chat.completions.create(
             model="gpt-4o",  # Убедитесь, что используется модель, поддерживающая изображения
             messages=messages,
-            max_tokens=100
+            max_tokens=200  # Увеличено для более длинного ответа
         )
-        return response.choices[0].message.content
+        return response.choices[0].message.content.strip()
     except Exception as e:
         logging.error(f"Ошибка в ask_gpt: {str(e)}")
         raise
