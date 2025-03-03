@@ -6,7 +6,7 @@ from twilio.rest import Client as TwilioClient
 from openai import OpenAI, __version__ as openai_version
 import logging
 from io import BytesIO
-from PIL import Image, ImageEnhance
+from PIL import Image
 import time
 
 # Инициализация Flask приложения
@@ -23,7 +23,7 @@ TWILIO_WHATSAPP_NUMBER = os.getenv("TWILIO_WHATSAPP_NUMBER")
 
 # Проверка наличия обязательных переменных окружения
 if not all([OPENAI_API_KEY, TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_WHATSAPP_NUMBER]):
-    raise ValueError("Отсутствуют одна или несколько обязательных переменных окружения!")
+    raise ValueError("Missing one or more required environment variables!")
 
 # Инициализация клиента Twilio
 twilio_client = TwilioClient(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
@@ -56,22 +56,18 @@ def webhook():
             )
             response.raise_for_status()  # Проверка на ошибки (например, 401)
 
-            # Загрузка изображения с минимальной обработкой
+            # Загрузка изображения без обработки
             image = Image.open(BytesIO(response.content)).convert("RGB")
-            # Минимальная оптимизация (легкая резкость)
-            enhancer = ImageEnhance.Sharpness(image)
-            image = enhancer.enhance(1.5)  # Легкое улучшение резкости
             buffered = BytesIO()
             image.save(buffered, format="PNG", quality=95)
             img_base64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
 
-            # Улучшенный prompt на английском
+            # Упрощенный prompt
             prompt = (
-                "Analyze the image, find the question and answer choices related to exam material on California construction laws. "
-                "Focus only on the question and listed answer choices related to legislation, ignoring unrelated text (e.g., instructions or notes). "
-                "Answer the question by selecting the correct choice according to California construction laws for a General Contractor (Class B). "
+                "Analyze the image, find the question and answer choices. "
+                "Answer the question by selecting the correct choice. "
                 "Respond strictly in the format: \nAnswer: [text of correct choice]  \n"
-                "If no question is found, respond with: \nAnswer: N/A"
+                "If no question or choices are found, respond with: \nAnswer: N/A"
             )
             messages = [
                 {
