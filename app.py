@@ -30,9 +30,6 @@ twilio_client = TwilioClient(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
 # Инициализация клиента OpenAI
 openai_client = OpenAI(api_key=OPENAI_API_KEY)
 
-# Предопределенные варианты ответа
-OPTIONS = ["A", "B", "C"]
-
 @app.route('/webhook', methods=['POST'])
 def webhook():
     try:
@@ -58,25 +55,27 @@ def webhook():
             response.raise_for_status()  # Проверка на ошибки (например, 401)
 
             # Загрузка и улучшение изображения
-            image = Image.open(BytesIO(response.content)).convert("RGB")  # Преобразование в RGB для совместимости
+            image = Image.open(BytesIO(response.content)).convert("RGB")
             # Увеличение резкости и контрастности
             enhancer = ImageEnhance.Sharpness(image)
-            image = enhancer.enhance(2.0)  # Увеличение резкости (2.0 - умеренное значение)
+            image = enhancer.enhance(2.5)
             enhancer = ImageEnhance.Contrast(image)
-            image = enhancer.enhance(1.5)  # Увеличение контрастности (1.5 - умеренное значение)
-            # Увеличение размера изображения (например, в 2 раза)
-            new_size = (image.width * 2, image.height * 2)
-            image = image.resize(new_size, Image.Resampling.LANCZOS)  # Высококачественное масштабирование
+            image = enhancer.enhance(1.7)
+            # Увеличение размера изображения
+            new_size = (image.width * 3, image.height * 3)
+            image = image.resize(new_size, Image.Resampling.LANCZOS)
 
             buffered = BytesIO()
-            image.save(buffered, format="PNG", quality=95)  # Сохранение с высоким качеством
+            image.save(buffered, format="PNG", quality=95)
             img_base64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
 
-            # Улучшенный prompt для выбора варианта
+            # Упрощенный prompt для выбора только ответа
             prompt = (
-                "Анализируйте изображение. Найдите вопрос и выберите наиболее релевантный вариант ответа "
-                f"из списка: {', '.join(OPTIONS)}. Верните ответ только в формате 'Ответ [выбранный_вариант]' "
-                "(например, 'Ответ A'). Если вопрос не найден, верните 'Ответ N/A'."
+                "Анализируйте изображение. Найдите текст с вопросом, связанным с калифорнийским законодательством "
+                "в области строительства и права (например, контракты, страхование, лицензии), и перечисленные варианты ответа. "
+                "Выберите наиболее релевантный и правильный вариант ответа на основе законов Калифорнии для генерального подрядчика (Class B). "
+                "Верните ответ только в формате 'Ответ: [выбранный_вариант]' (например, 'Ответ: A contractor must have general liability insurance.'). "
+                "Если вопрос или варианты не найдены, верните 'Ответ: N/A'."
             )
             messages = [
                 {
@@ -118,9 +117,9 @@ def ask_gpt(messages):
     try:
         logging.debug(f"Версия библиотеки OpenAI: {openai_version}")
         response = openai_client.chat.completions.create(
-            model="gpt-4o",  # Модель, поддерживающая изображения
+            model="gpt-4o",
             messages=messages,
-            max_tokens=500  # Достаточно для анализа текста
+            max_tokens=600
         )
         return response.choices[0].message.content.strip()
     except Exception as e:
