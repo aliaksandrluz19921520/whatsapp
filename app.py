@@ -62,9 +62,9 @@ def webhook():
             image.save(buffered, format="PNG", quality=95)
             img_base64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
 
-            # Новый улучшенный prompt
+            # Ваш текущий улучшенный prompt
             prompt = (
-                "You are an AI assistant designed to help with exam questions for contractors in California. Your task is to analyze the provided image, identify the question and answer choices, and select the correct answer. Be thorough: multiple choices may be correct (e.g., A and C). If an option combines these (e.g., D = A and C), choose it as the most comprehensive answer. Use logical reasoning and base your decision on California contractor licensing standards, safety practices, and general construction knowledge. Ignore unrelated text (e.g., interface elements or notes). Respond strictly in the format: \nAnswer: [text of correct choice] \nIf no question or choices are found, or if the text is unreadable, respond with: \nAnswer: N/A. In case of uncertainty, prioritize the option most aligned with California contractor practices."
+                "You are an AI assistant designed to help with exam questions for contractors in California. Your task is to analyze the provided image, identify the question and answer choices, and select the correct answer. Be thorough: pay close attention to the exact wording of the question (for example, note the difference between 'type of' and 'conditions where'). Multiple choices may be correct (e.g., A and C). If an option combines these (e.g., D = A and C), choose it as the most complete and accurate answer. Use logical reasoning and base your decision on California contractor licensing standards, safety practices, and general construction knowledge. Ignore unrelated text (such as interface elements or notes). Respond strictly in the following format: \nAnswer: [text of correct choice] \nIf no question or answer choices are found, or if the text is unreadable, respond with: \nAnswer: N/A \nIn case of uncertainty, prioritize the option most aligned with California contractor practices."
             )
             messages = [
                 {
