@@ -4,3 +4,4 @@ openai>=1.30.0
 gunicorn
 requests
 pillow
+google-cloud-vision
