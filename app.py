@@ -76,17 +76,10 @@ def webhook():
             image_response.raise_for_status()
             image_content = image_response.content
 
-            # Улучшение качества изображения
-            image = Image.open(BytesIO(image_content)).convert("RGB")
-            image = image.resize((image.width * 2, image.height * 2), Image.Resampling.LANCZOS)  # Увеличение разрешения
-            buffered = BytesIO()
-            image.save(buffered, format="PNG", quality=95)
-            image_content = buffered.getvalue()
-
             start_ocr_time = time.time()
             vision_image = vision.Image(content=image_content)
-            # Улучшенный запрос к Google Vision
-            vision_response = vision_client.text_detection(image=vision_image)
+            # Используем document_text_detection для лучшего распознавания
+            vision_response = vision_client.document_text_detection(image=vision_image)
             ocr_time = time.time() - start_ocr_time
             logging.debug(f"OCR processing time: {ocr_time} seconds")
 
@@ -156,6 +149,7 @@ Answer: N/A
         start_gpt_time = time.time()
         gpt_response = ask_gpt(gpt_prompt)
         gpt_time = time.time() - start_gpt_time
+        logging.debug(f"GPT response: {gpt_response}")  # Отладочный вывод ответа
         logging.debug(f"GPT processing time: {gpt_time} seconds")
 
         send_whatsapp_message(from_number, gpt_response)
