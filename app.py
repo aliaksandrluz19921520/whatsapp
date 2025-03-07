@@ -90,13 +90,13 @@ def webhook():
             else:
                 extracted_text = vision_response.text_annotations[0].description
                 logging.debug(f"Raw extracted text: {extracted_text}")  # Отладочный вывод
-                # Улучшенная фильтрация интерфейса
-                input_text = '\n'.join(line for line in extracted_text.split('\n') if not re.match(r'^(File|View|History|Bookmarks|Window|Help|TOOLS|CONTRAST|KEYBOARD SHORTCUTS|Page \d+ of \d+|stsonline\.cslscorp\.com|ARCHIVE EXAM|MENU|EXAM|OPTIONS|START|RESUME|IN-COMPLETE|VIEW|HISTORY|Test Date|Start Time|Time Remaining|No\. of Questions|Current Question No\.|Score|Student|psi|\d{2}/\d{2}/\d{4}|\d{1,2}:\d{2} [AP]M|\d{1,2}:\d{2}|\d+\s*(%|\w+)?|I think there is a technical or content error with this question\.)$', line.strip()))
+                # Улучшенная фильтрация интерфейса с сохранением вопросов
+                input_text = '\n'.join(line for line in extracted_text.split('\n') if not re.match(r'^(File|View|History|Bookmarks|Window|Help|TOOLS|CONTRAST|KEYBOARD SHORTCUTS|Page \d+ of \d+|stsonline\.cslscorp\.com|ARCHIVE EXAM|MENU|EXAM|OPTIONS|START|RESUME|IN-COMPLETE|VIEW|HISTORY|Test Date|Start Time|Time Remaining|No\. of Questions|Current Question No\.|Score|Student|psi|\d{2}/\d{2}/\d{4}|\d{1,2}:\d{2} [AP]M|\d{1,2}:\d{2}|\d+\s*(%|\w+)?|I think there is a technical or content error with this question\.|\w{2,3})$', line.strip()) or re.search(r'^(Question \d+:|\d+:|\w+\.)', line.strip()))
                 logging.debug(f"Filtered input text: {input_text}")  # Отладочный вывод отфильтрованного текста
         else:
             input_text = message_body
 
-        # Усиленный промт с инструкцией игнорировать интерфейс
+        # Промт с пошаговым анализом
         gpt_prompt = f"""
 You are a licensed California construction expert and professional exam instructor. Analyze the following exam question and select the most accurate answer.
 Your answers must strictly follow California regulations, including the California Building Code (CBC), California OSHA standards, ADA guidelines, and CSLB exam practices.
@@ -109,14 +109,16 @@ In construction questions:
     • Always consider fractions as exact values for precise measurements.
     • If symbols appear unclear, missing, or distorted in the image, assume standard notation and apply common construction measurement logic.
 
-Analyze the provided exam question carefully. Follow these steps to ensure maximum accuracy:
+Analyze the provided exam question carefully. Follow these steps and provide your reasoning:
     1. Understand the question:
-    – Identify key details such as specific words (e.g., “minimum,” “maximum,” “required,” “residential,” “commercial”).
+    – Identify the question number and text.
+    – Note key details such as specific words (e.g., “minimum,” “maximum,” “required,” “residential,” “commercial”).
     – Pay close attention to numerical values, measurements, and calculation requirements.
     2. Analyze the answer options:
-    – Compare each option carefully.
+    – List all options (e.g., A, B, C, D).
+    – Compare each option carefully against the question and California regulations.
     – Check for combined options (like D = A and C), and prioritize them if they represent the most complete answer.
-    – If multiple answers seem correct, choose the most comprehensive, safest, and legally compliant option.
+    – If multiple answers seem correct, choose the most comprehensive, safest, and legally compliant option, but prioritize the minimum requirement if specified.
     3. Check numerical accuracy:
     – If the question involves calculations, perform them step-by-step.
     – Reconfirm the correctness of dimensions, percentages, distances, and other critical measurements according to California codes.
@@ -126,26 +128,31 @@ Analyze the provided exam question carefully. Follow these steps to ensure maxim
     – Include knowledge from safety regulations, insurance, health standards, and licensing laws.
     5. Clarify ambiguous cases:
     – If there’s uncertainty, choose the option that best aligns with California contractor legal practices and prioritizes safety and compliance.
-    6. Avoid common mistakes:
-    – Do NOT ignore numerical differences, even if they seem small (e.g., 1/8 inch, ½ inch).
-    – Do NOT select options outside the provided list.
-    – Do NOT guess without analysis.
+    6. Provide the final answer:
+    – Summarize your reasoning and select the best option.
 
 Critical rules:
-    – Always double-check calculations and reasoning before giving the final answer.
+    – Double-check calculations and reasoning before giving the final answer.
     – Be as precise as possible with numbers and measurements.
+    – If the question specifies “minimum,” prioritize the smallest sufficient size that meets safety standards.
     – If the question mentions “all of the above” or combination answers (A and C), prioritize those if they are valid.
     – Ignore irrelevant text (UI elements, notes, system messages, dates, times, or interface labels like TOOLS, CONTRAST, KEYBOARD SHORTCUTS, MENU, EXAM, OPTIONS).
     – Prioritize universal rules over specific exceptions unless the question specifies otherwise.
-    – Do NOT provide any explanations or reasoning; return only the answer in the specified format.
+    – Return the answer in the specified format with reasoning.
 
 Question:
 {input_text}
 
 Answer format:
+Step 1: [Understanding of the question]
+Step 2: [Analysis of the options]
+Step 3: [Final answer with reasoning]
 Answer: [exact text of the correct answer option]
 
 If the question or options are unreadable, respond:
+Step 1: [Unable to identify the question]
+Step 2: [No options available]
+Step 3: [Question unreadable]
 Answer: N/A
 """
 
@@ -180,7 +187,7 @@ def ask_gpt(prompt):
                 {"role": "user", "content": prompt}
             ],
             temperature=0.2,
-            max_tokens=1000
+            max_tokens=1500  # Увеличим лимит для пошагового анализа
         )
         return response.choices[0].message.content.strip()
     except Exception as e:
