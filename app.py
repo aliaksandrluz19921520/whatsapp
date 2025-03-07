@@ -28,19 +28,20 @@ if not all([OPENAI_API_KEY, TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_WHATSA
 # Инициализация клиента Twilio
 twilio_client = TwilioClient(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
 
-# Ручная инициализация клиента OpenAI
+# Инициализация клиента OpenAI
 openai_client = OpenAI(
     api_key=OPENAI_API_KEY,
-    # Убедитесь, что прокси не передаются, если они не нужны
-    # Если нужны прокси, добавьте их явно, например:
-    # http_client=SyncHttpxClientWrapper(proxies={"http": "http://proxy:port", "https": "http://proxy:port"})
+    # Прокси убраны, так как они вызывали ошибку
 )
 
-@app.route('/webhook', methods=['POST'])
+@app.route('/webhook', methods=['POST', 'GET'])
 def webhook():
     start_time = time.time()
     try:
-        # Получение данных из запроса
+        if request.method == 'GET':
+            return jsonify({"status": "ok"}), 200
+
+        # Получение данных из запроса (только для POST)
         data = request.form
         from_number = data.get('From')
         message_body = data.get('Body')
@@ -72,38 +73,62 @@ def webhook():
                 # Загрузка изображения без обработки
                 image = Image.open(BytesIO(response.content)).convert("RGB")
                 buffered = BytesIO()
-                image.save(buffered, format="PNG", quality=95)
+                image.save(buffered, format="PNG")  # Убрали quality=95
                 img_base64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
 
-                # Новый промпт
-                prompt = (
-                    "You are an AI assistant designed to help with exam questions for contractors in California. Your task is to analyze the provided image, identify the exam question and answer choices, and select the most correct answer.\n\n"
-                    "Follow these critical guidelines:\n\n"
-                    "1. **Use only official California CSLB exam standards**. Prioritize CSLB codes, safety regulations, and licensing laws over real-world practices or assumptions.\n"
-                    "2. **Pay close attention to precise wording** of the question (for example, distinguish between 'type of' and 'conditions where').\n"
-                    "3. **For numerical values and standards** (such as measurements, sizes, slopes, and distances):\n"
-                    "   - Always choose the exact numerical value that matches California construction codes.\n"
-                    "   - Avoid estimates or rounding unless specified in the answer choices.\n"
-                    "   - Use correct unit conversions (feet, inches, yards, etc.).\n"
-                    "4. **For mathematical calculations** (areas, volumes, lengths):\n"
-                    "   - Carefully apply the correct formulas.\n"
-                    "   - Double-check units and conversions.\n"
-                    "   - Select the answer closest to the exact calculation result, considering rounding only as necessary.\n"
-                    "5. **When multiple options (e.g., A and C) are correct**, and there is a combined answer (like D = A and C), select the combined option as the most complete.\n"
-                    "6. **For answers like 'All of the above' or 'None of the above'**, only choose them if ALL included statements are entirely correct or incorrect.\n"
-                    "7. **For material selections**, choose the option that fully meets California building codes, environmental conditions, and safety standards.\n"
-                    "8. **For safety-related questions**, select the answer that provides the highest level of safety and legal compliance, including health, insurance, and licensing topics.\n"
-                    "9. **For accessibility and ADA compliance**, apply specific dimension requirements (e.g., hallway widths, landing sizes) accurately according to California code.\n"
-                    "10. **For structural limits** (like cantilever lengths or anchor bolt spacing), use the exact values from California regulations.\n"
-                    "11. **Ignore unrelated text** (such as system buttons, notes, or interface elements).\n"
-                    "12. **If no valid question or answer choices are found, or if the image is unreadable**, respond with:\nAnswer: N/A\n\n"
-                    "Respond strictly in this format: \nAnswer: [exact text of the correct answer]"
-                )
+                # Новый промпт с уточнением
+                prompt = """
+You are a licensed California construction expert and professional exam instructor. Your task is to carefully analyze each question from the California General Building Contractor (Class B) license exam and select the most accurate answer.
+Your answers must strictly follow California regulations, including the California Building Code (CBC), California OSHA standards, ADA guidelines, and CSLB exam practices.
+
+Analyze the provided exam question carefully. Follow these steps to ensure maximum accuracy:
+    1. Understand the question:
+    – Identify key details such as specific words (e.g., “minimum,” “maximum,” “required,” “residential,” “commercial”).
+    – Pay close attention to numerical values, measurements, and calculation requirements.
+    2. Analyze the answer options:
+    – Compare each option carefully.
+    – Check for combined options (like D = A and C), and prioritize them if they represent the most complete answer.
+    – If multiple answers seem correct, choose the most comprehensive, safest, and legally compliant option.
+    3. Check numerical accuracy:
+    – If the question involves calculations, perform them step-by-step.
+    – Reconfirm the correctness of dimensions, percentages, distances, and other critical measurements according to California codes.
+    4. Consider legal context:
+    – Apply official California standards (CBC, OSHA, ADA).
+    – Do not use general or international construction practices.
+    – Include knowledge from safety regulations, insurance, health standards, and licensing laws.
+    5. Clarify ambiguous cases:
+    – If there’s uncertainty, choose the option that best aligns with California contractor legal practices and prioritizes safety and compliance.
+    6. Avoid common mistakes:
+    – Do NOT ignore numerical differences, even if they seem small (e.g., 1/8 inch, ½ inch).
+    – Do NOT select options outside the provided list.
+    – Do NOT guess without analysis.
+
+Critical rules:
+– Always double-check calculations and reasoning before giving the final answer.
+– Be as precise as possible with numbers and measurements.
+– If the question mentions “all of the above” or combination answers (A and C), prioritize those if they are valid.
+– Ignore irrelevant text (UI elements, notes, system messages).
+– Prioritize universal rules over specific exceptions unless the question specifies otherwise.
+– Do NOT provide any explanations or reasoning; return only the answer in the specified format.
+
+Answer format:
+Answer: [exact text of the correct answer option]
+
+If the question or options are missing or unreadable, respond:
+Answer: N/A
+                """
                 messages = [
+                    {
+                        "role": "system",
+                        "content": prompt
+                    },
                     {
                         "role": "user",
                         "content": [
-                            {"type": "text", "text": prompt},
+                            {
+                                "type": "text",
+                                "text": "Analyze the exam question in the provided image and select the correct answer based on California contractor standards."
+                            },
                             {
                                 "type": "image_url",
                                 "image_url": {"url": f"data:image/png;base64,{img_base64}"}
@@ -119,7 +144,17 @@ def webhook():
                 logging.debug(f"GPT processing time: {gpt_time} seconds")
 
         else:
-            messages = [{"role": "user", "content": message_body}]
+            # Для текстовых сообщений используем упрощенный промпт
+            messages = [
+                {
+                    "role": "system",
+                    "content": "You are an AI assistant designed to help with exam questions for contractors in California. Provide accurate answers based on California CSLB standards. Do NOT provide explanations; return only the answer in the format 'Answer: [exact text]' or 'Answer: N/A' if the question is invalid."
+                },
+                {
+                    "role": "user",
+                    "content": message_body
+                }
+            ]
 
             # Получение ответа от GPT-4o
             start_gpt_time = time.time()
@@ -145,17 +180,17 @@ def webhook():
         logging.error(f"Error in webhook: {str(e)}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
-@app.route('/webhook', methods=['GET'])
-def webhook_check():
-    return jsonify({"status": "ok"}), 200
-
 def ask_gpt(messages):
     try:
         logging.debug(f"OpenAI library version: {openai_version}")
         response = openai_client.chat.completions.create(
             model="gpt-4o",
             messages=messages,
-            max_tokens=600
+            temperature=0.2,  # Для максимальной точности
+            max_tokens=1000,  # Оставляем 1000
+            top_p=1.0,
+            presence_penalty=0,
+            frequency_penalty=0
         )
         return response.choices[0].message.content.strip()
     except Exception as e:
