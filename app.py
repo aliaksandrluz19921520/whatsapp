@@ -4,6 +4,7 @@ import requests
 import logging
 import time
 import json
+import re
 from flask import Flask, request, jsonify
 from twilio.rest import Client as TwilioClient
 from openai import OpenAI
@@ -89,11 +90,13 @@ def webhook():
             else:
                 extracted_text = vision_response.text_annotations[0].description
                 logging.debug(f"Raw extracted text: {extracted_text}")  # Отладочный вывод
-                input_text = extracted_text  # Передаем весь текст без фильтрации
+                # Улучшенная фильтрация интерфейса
+                input_text = '\n'.join(line for line in extracted_text.split('\n') if not re.match(r'^(File|View|History|Bookmarks|Window|Help|TOOLS|CONTRAST|KEYBOARD SHORTCUTS|Page \d+ of \d+|stsonline\.cslscorp\.com|ARCHIVE EXAM|MENU|EXAM|OPTIONS|START|RESUME|IN-COMPLETE|VIEW|HISTORY|Test Date|Start Time|Time Remaining|No\. of Questions|Current Question No\.|Score|Student|psi|\d{2}/\d{2}/\d{4}|\d{1,2}:\d{2} [AP]M|\d{1,2}:\d{2}|\d+\s*(%|\w+)?|I think there is a technical or content error with this question\.)$', line.strip()))
+                logging.debug(f"Filtered input text: {input_text}")  # Отладочный вывод отфильтрованного текста
         else:
             input_text = message_body
 
-        # Усиленный промт
+        # Усиленный промт с инструкцией игнорировать интерфейс
         gpt_prompt = f"""
 You are a licensed California construction expert and professional exam instructor. Analyze the following exam question and select the most accurate answer.
 Your answers must strictly follow California regulations, including the California Building Code (CBC), California OSHA standards, ADA guidelines, and CSLB exam practices.
@@ -132,7 +135,7 @@ Critical rules:
     – Always double-check calculations and reasoning before giving the final answer.
     – Be as precise as possible with numbers and measurements.
     – If the question mentions “all of the above” or combination answers (A and C), prioritize those if they are valid.
-    – Ignore irrelevant text (UI elements, notes, system messages).
+    – Ignore irrelevant text (UI elements, notes, system messages, dates, times, or interface labels like TOOLS, CONTRAST, KEYBOARD SHORTCUTS, MENU, EXAM, OPTIONS).
     – Prioritize universal rules over specific exceptions unless the question specifies otherwise.
     – Do NOT provide any explanations or reasoning; return only the answer in the specified format.
 
