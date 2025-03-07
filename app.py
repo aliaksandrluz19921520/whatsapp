@@ -36,12 +36,18 @@ if GOOGLE_APPLICATION_CREDENTIALS:
     try:
         # Парсим JSON из строки
         creds_dict = json.loads(GOOGLE_APPLICATION_CREDENTIALS)
+        # Заменяем экранированные \n на настоящие переносы строк в private_key
+        if "private_key" in creds_dict:
+            creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
         # Создаем временный файл
         with open("/tmp/google-credentials.json", "w") as f:
-            json.dump(creds_dict, f)
+            json.dump(creds_dict, f, indent=4)  # indent=4 для читаемости логов
         # Устанавливаем путь к временному файлу как переменную окружения
         os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/tmp/google-credentials.json"
         logging.debug("Google credentials file created successfully at /tmp/google-credentials.json")
+        # Логируем содержимое файла для отладки (только в разработке, удалить в продакшене)
+        with open("/tmp/google-credentials.json", "r") as f:
+            logging.debug(f"Content of /tmp/google-credentials.json: {f.read()}")
     except json.JSONDecodeError as e:
         logging.error(f"Invalid JSON in GOOGLE_APPLICATION_CREDENTIALS: {str(e)}")
         raise ValueError("Invalid Google credentials JSON format")
