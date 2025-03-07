@@ -3,6 +3,7 @@ import base64
 import requests
 import logging
 import time
+import json
 from flask import Flask, request, jsonify
 from twilio.rest import Client as TwilioClient
 from openai import OpenAI
@@ -20,10 +21,33 @@ TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
 TWILIO_WHATSAPP_NUMBER = os.getenv("TWILIO_WHATSAPP_NUMBER")
 GOOGLE_APPLICATION_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
 
+# Логирование для диагностики
+logging.debug(f"OPENAI_API_KEY: {'Set' if OPENAI_API_KEY else 'Not set'}")
+logging.debug(f"TWILIO_ACCOUNT_SID: {'Set' if TWILIO_ACCOUNT_SID else 'Not set'}")
+logging.debug(f"TWILIO_AUTH_TOKEN: {'Set' if TWILIO_AUTH_TOKEN else 'Not set'}")
+logging.debug(f"TWILIO_WHATSAPP_NUMBER: {'Set' if TWILIO_WHATSAPP_NUMBER else 'Not set'}")
+logging.debug(f"GOOGLE_APPLICATION_CREDENTIALS: {'Set' if GOOGLE_APPLICATION_CREDENTIALS else 'Not set'}")
+
 if not all([OPENAI_API_KEY, TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_WHATSAPP_NUMBER, GOOGLE_APPLICATION_CREDENTIALS]):
     raise ValueError("Missing required environment variables!")
 
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = GOOGLE_APPLICATION_CREDENTIALS
+# Создание временного файла для Google Credentials
+if GOOGLE_APPLICATION_CREDENTIALS:
+    try:
+        # Парсим JSON из строки
+        creds_dict = json.loads(GOOGLE_APPLICATION_CREDENTIALS)
+        # Создаем временный файл
+        with open("/tmp/google-credentials.json", "w") as f:
+            json.dump(creds_dict, f)
+        # Устанавливаем путь к временному файлу как переменную окружения
+        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/tmp/google-credentials.json"
+        logging.debug("Google credentials file created successfully at /tmp/google-credentials.json")
+    except json.JSONDecodeError as e:
+        logging.error(f"Invalid JSON in GOOGLE_APPLICATION_CREDENTIALS: {str(e)}")
+        raise ValueError("Invalid Google credentials JSON format")
+    except Exception as e:
+        logging.error(f"Error creating Google credentials file: {str(e)}")
+        raise ValueError("Failed to create Google credentials file")
 
 # Clients
 twilio_client = TwilioClient(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
