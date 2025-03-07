@@ -5,3 +5,4 @@ gunicorn
 requests
 pillow
 google-cloud-vision
+google-auth
