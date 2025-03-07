@@ -34,20 +34,13 @@ if not all([OPENAI_API_KEY, TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_WHATSA
 # Создание временного файла для Google Credentials
 if GOOGLE_APPLICATION_CREDENTIALS:
     try:
-        # Парсим JSON из строки
         creds_dict = json.loads(GOOGLE_APPLICATION_CREDENTIALS)
-        # Заменяем экранированные \n на настоящие переносы строк в private_key
         if "private_key" in creds_dict:
             creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
-        # Создаем временный файл
         with open("/tmp/google-credentials.json", "w") as f:
-            json.dump(creds_dict, f, indent=4)  # indent=4 для читаемости логов
-        # Устанавливаем путь к временному файлу как переменную окружения
+            json.dump(creds_dict, f, indent=4)
         os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/tmp/google-credentials.json"
         logging.debug("Google credentials file created successfully at /tmp/google-credentials.json")
-        # Логируем содержимое файла для отладки (только в разработке, удалить в продакшене)
-        with open("/tmp/google-credentials.json", "r") as f:
-            logging.debug(f"Content of /tmp/google-credentials.json: {f.read()}")
     except json.JSONDecodeError as e:
         logging.error(f"Invalid JSON in GOOGLE_APPLICATION_CREDENTIALS: {str(e)}")
         raise ValueError("Invalid Google credentials JSON format")
@@ -78,12 +71,21 @@ def webhook():
 
     try:
         if media_url:
-            # Обработка изображения
+            # Загрузка изображения
             image_response = requests.get(media_url, auth=(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN), timeout=10)
             image_response.raise_for_status()
             image_content = image_response.content
+
+            # Улучшение качества изображения
+            image = Image.open(BytesIO(image_content)).convert("RGB")
+            image = image.resize((image.width * 2, image.height * 2), Image.Resampling.LANCZOS)  # Увеличение разрешения
+            buffered = BytesIO()
+            image.save(buffered, format="PNG", quality=95)
+            image_content = buffered.getvalue()
+
             start_ocr_time = time.time()
             vision_image = vision.Image(content=image_content)
+            # Улучшенный запрос к Google Vision
             vision_response = vision_client.text_detection(image=vision_image)
             ocr_time = time.time() - start_ocr_time
             logging.debug(f"OCR processing time: {ocr_time} seconds")
@@ -93,11 +95,9 @@ def webhook():
                 gpt_response = "Answer: N/A"
             else:
                 extracted_text = vision_response.text_annotations[0].description
-                filtered_text = filter_text(extracted_text)
-                input_text = filtered_text if filtered_text else "No valid question found"
-                logging.debug(f"Extracted and filtered text: {input_text}")
+                logging.debug(f"Raw extracted text: {extracted_text}")  # Отладочный вывод
+                input_text = extracted_text  # Передаем весь текст без фильтрации
         else:
-            # Обработка текста
             input_text = message_body
 
         # Усиленный промт
@@ -173,15 +173,6 @@ Answer: N/A
     except Exception as e:
         logging.error(f"Error in webhook: {str(e)}")
         return jsonify({"status": "error", "message": str(e)}), 500
-
-def filter_text(text):
-    lines = text.split('\n')
-    filtered = []
-    for line in lines:
-        line = line.strip()
-        if line and (line.startswith(('A.', 'B.', 'C.', 'D.', 'Which', 'How', 'Given')) or '?' in line or any(c.isdigit() for c in line)):
-            filtered.append(line)
-    return '\n'.join(filtered) if filtered else "No valid question found"
 
 def ask_gpt(prompt):
     try:
