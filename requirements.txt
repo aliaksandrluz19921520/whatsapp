@@ -4,5 +4,3 @@ openai>=1.30.0
 gunicorn>=21.0.0
 requests>=2.31.0
 pillow>=10.0.0
-google-cloud-vision>=3.0.0
-google-auth>=2.0.0
