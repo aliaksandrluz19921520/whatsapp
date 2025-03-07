@@ -76,10 +76,18 @@ def webhook():
                 image.save(buffered, format="PNG")  # Убрали quality=95
                 img_base64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
 
-                # Новый промпт с уточнением
+                # Обновленный усиленный промт
                 prompt = """
 You are a licensed California construction expert and professional exam instructor. Your task is to carefully analyze each question from the California General Building Contractor (Class B) license exam and select the most accurate answer.
 Your answers must strictly follow California regulations, including the California Building Code (CBC), California OSHA standards, ADA guidelines, and CSLB exam practices.
+
+Important clarification about symbols and fractions:
+In construction questions:
+    • The symbol ' (single quote) means feet.
+    • The symbol " (double quote) means inches.
+    • Fractions such as 1/8”, 3/4”, 5-1/2” must be read and calculated accurately as inches.
+    • Always consider fractions as exact values for precise measurements.
+    • If symbols appear unclear, missing, or distorted in the image, assume standard notation and apply common construction measurement logic.
 
 Analyze the provided exam question carefully. Follow these steps to ensure maximum accuracy:
     1. Understand the question:
@@ -104,12 +112,12 @@ Analyze the provided exam question carefully. Follow these steps to ensure maxim
     – Do NOT guess without analysis.
 
 Critical rules:
-– Always double-check calculations and reasoning before giving the final answer.
-– Be as precise as possible with numbers and measurements.
-– If the question mentions “all of the above” or combination answers (A and C), prioritize those if they are valid.
-– Ignore irrelevant text (UI elements, notes, system messages).
-– Prioritize universal rules over specific exceptions unless the question specifies otherwise.
-– Do NOT provide any explanations or reasoning; return only the answer in the specified format.
+    – Always double-check calculations and reasoning before giving the final answer.
+    – Be as precise as possible with numbers and measurements.
+    – If the question mentions “all of the above” or combination answers (A and C), prioritize those if they are valid.
+    – Ignore irrelevant text (UI elements, notes, system messages).
+    – Prioritize universal rules over specific exceptions unless the question specifies otherwise.
+    – Do NOT provide any explanations or reasoning; return only the answer in the specified format.
 
 Answer format:
 Answer: [exact text of the correct answer option]
