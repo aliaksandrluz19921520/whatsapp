@@ -217,7 +217,13 @@ Answer: N/A
             logging.debug(f"Full GPT response: {gpt_response}")  # Логируем полный ответ
             logging.debug(f"GPT processing time: {gpt_time} seconds")
 
-        send_whatsapp_message(from_number, gpt_response)
+        # Извлечение только финального ответа (после "Answer:")
+        final_answer = gpt_response.split("Answer:")[1].strip() if "Answer:" in gpt_response else gpt_response
+        # Удаляем букву варианта (A., B., C., D.) из ответа, если она есть
+        final_answer = final_answer.split(".", 1)[1].strip() if final_answer.startswith(("A.", "B.", "C.", "D.")) else final_answer
+
+        # Отправка только финального ответа в WhatsApp
+        send_whatsapp_message(from_number, final_answer)
         total_time = time.time() - start_time
         logging.debug(f"Total response time: {total_time} seconds")
 
