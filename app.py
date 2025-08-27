@@ -239,7 +239,7 @@ Answer: N/A
 def ask_gpt(messages_or_prompt):
     try:
         response = openai_client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-5",
             messages=messages_or_prompt if isinstance(messages_or_prompt, list) else [
                 {"role": "system", "content": "You are an AI assistant for California contractor exam questions."},
                 {"role": "user", "content": messages_or_prompt}
